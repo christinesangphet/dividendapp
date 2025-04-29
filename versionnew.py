@@ -17,8 +17,6 @@ import plotly.graph_objects as go
 import plotly.express as px
 from sklearn.neighbors import KernelDensity
 
-pip install plotly
-
 # ============================================
 # Dividend Dashboard Functions
 # ============================================
