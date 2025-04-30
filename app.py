@@ -437,56 +437,57 @@ def main():
                 st.error(f"Error: {classification}")
 
      elif page == "Investing Analysis":
-        st.subheader("Input preferences below for personalized investment analysis:")
+    st.subheader("Input preferences below for personalized investment analysis:")
 
-        budget = st.number_input("Investment Budget ($)", min_value=0)
-        investment_priority = st.selectbox(
-            "Select Investment Priority",
-            ['Dividend Yield', 'Expected Return', 'Stability']
-        )
-        min_price = st.number_input("Minimum Stock Price ($)", min_value=0, value=20)
-        max_price = st.number_input("Maximum Stock Price ($)", min_value=0, value=500)
+    budget = st.number_input("Investment Budget ($)", min_value=0)
+    investment_priority = st.selectbox(
+        "Select Investment Priority",
+        ['Dividend Yield', 'Expected Return', 'Stability']
+    )
+    min_price = st.number_input("Minimum Stock Price ($)", min_value=0, value=20)
+    max_price = st.number_input("Maximum Stock Price ($)", min_value=0, value=500)
 
-        if st.button("Get Stock Recommendations"):
-            tickers = get_sp500_tickers()
-            df_features = extract_features(tickers)
-            model, clustered = perform_clustering(df_features)
+    if st.button("Get Stock Recommendations"):
+        tickers = get_sp500_tickers()
+        df_features = extract_features(tickers)
+        model, clustered = perform_clustering(df_features)
 
-            # Explain clustering
-            st.subheader("How Clustering Works")
-            st.write("""
-            Stocks are grouped into clusters based on similarities in their dividend yield, expected return (based on financial metrics), and stability (volatility measured by beta).
-            We recommend stocks from the 'best' cluster that matches your selected priority.
-            """)
+        # Explain clustering
+        st.subheader("How Clustering Works")
+        st.write("""
+        Stocks are grouped into clusters based on similarities in their dividend yield, expected return (based on financial metrics), and stability (volatility measured by beta).
+        We recommend stocks from the 'best' cluster that matches your selected priority.
+        """)
 
-            # Visualize clusters in 3D
-            st.subheader("Cluster Visualization (3D)")
-            fig = plt.figure(figsize=(15, 15))
-            ax = fig.add_subplot(111, projection='3d')
-            ax.scatter(clustered['Dividend Yield'], clustered['Expected Return'], clustered['Stability'], 
-                       c=clustered['Cluster'], cmap='viridis')
+        # Visualize clusters in 3D
+        st.subheader("Cluster Visualization (3D)")
+        fig = plt.figure(figsize=(15, 15))
+        ax = fig.add_subplot(111, projection='3d')
+        ax.scatter(clustered['Dividend Yield'], clustered['Expected Return'], clustered['Stability'], 
+                   c=clustered['Cluster'], cmap='viridis')
 
-            ax.set_xlabel('Dividend Yield')
-            ax.set_ylabel('Expected Return')
-            ax.set_zlabel('Stability')
-            ax.set_title('Stock Clusters in 3D')
+        ax.set_xlabel('Dividend Yield')
+        ax.set_ylabel('Expected Return')
+        ax.set_zlabel('Stability')
+        ax.set_title('Stock Clusters in 3D')
 
-            # Add cluster labels at the center
-            for cluster_num in clustered['Cluster'].unique():
-                cluster_data = clustered[clustered['Cluster'] == cluster_num]
-                center_x = cluster_data['Dividend Yield'].mean()
-                center_y = cluster_data['Expected Return'].mean()
-                center_z = cluster_data['Stability'].mean()
-                ax.text(center_x, center_y, center_z, f'Cluster {cluster_num}', fontsize=12, weight='bold', 
-                        ha='center', va='center', bbox=dict(facecolor='white', alpha=0.6, edgecolor='black'))
+        # Add cluster labels at the center
+        for cluster_num in clustered['Cluster'].unique():
+            cluster_data = clustered[clustered['Cluster'] == cluster_num]
+            center_x = cluster_data['Dividend Yield'].mean()
+            center_y = cluster_data['Expected Return'].mean()
+            center_z = cluster_data['Stability'].mean()
+            ax.text(center_x, center_y, center_z, f'Cluster {cluster_num}', fontsize=12, weight='bold', 
+                    ha='center', va='center', bbox=dict(facecolor='white', alpha=0.6, edgecolor='black'))
 
-            st.pyplot(fig)
+        st.pyplot(fig)
 
-            preferences = {'priority': investment_priority}
-            recommended_stocks = recommend_stocks(clustered, budget, model, preferences, min_price, max_price)
+        preferences = {'priority': investment_priority}
+        recommended_stocks = recommend_stocks(clustered, budget, model, preferences, min_price, max_price)
 
-            st.subheader("Top Stock Picks for Your Budget and Preferences")
-            st.write(recommended_stocks)
+        st.subheader("Top Stock Picks for Your Budget and Preferences")
+        st.write(recommended_stocks)
+
 
 
     elif page == "Sector Competitor Explorer":
