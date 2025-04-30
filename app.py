@@ -130,68 +130,106 @@ def compute_altman_z(ticker: str):
     return z_score, classification
 
 # ============================================
-# Investing Analysis Functions
+# Investing Analysis Functions (Local Dataset)
+# ============================================
+
+import numpy as np
+import pandas as pd
+from scipy import stats
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
+import streamlit as st
+
+# ============================================
+# Load Features from Local CSV
 # ============================================
 @st.cache_data(show_spinner=False)
-def extract_features(tickers):
-    records = []
-    for ticker in tickers:
-        try:
-            info = yf.Ticker(ticker).info
-            dy = info.get('dividendYield', np.nan)
-            growth = info.get('earningsGrowth', np.nan)
-            price = info.get('regularMarketPrice', np.nan)
-            beta = info.get('beta', np.nan)
-            expected_return = (dy or 0) + (growth or 0)
-        except Exception as e:
-            st.warning(f"⚠️ Failed to fetch data for {ticker}: {e}")
-            dy, growth, price, beta, expected_return = np.nan, np.nan, np.nan, np.nan, np.nan
-        records.append([ticker, dy, price, beta, expected_return])
-    return pd.DataFrame(records, columns=['Ticker', 'Dividend Yield', 'Price', 'Stability', 'Expected Return'])
-def remove_outliers(df, columns):
-    z_scores = np.abs(stats.zscore(df[columns].dropna()))
-    return df[(z_scores < 3).all(axis=1)]
+def extract_features_from_local_csv():
+    try:
+        df = pd.read_csv("your_cleaned_trimmed_df.csv")
 
+        # Normalize column names
+        df.columns = [col.strip().replace(" ", "_") for col in df.columns]
+
+        # Rename for uniformity (based on your image)
+        df = df.rename(columns={
+            'Total_Asse': 'Total_Assets',
+            'Total_Reve': 'Total_Revenue',
+            'profitabilit': 'Profitability',
+            'sector': 'Sector'
+        })
+
+        # Drop missing values
+        df_clean = df[['ticker', 'Total_Assets', 'Total_Revenue', 'Profitability', 'Sector']].dropna()
+
+        # Create synthetic features
+        df_clean['Dividend Yield'] = df_clean['Profitability'] / 10
+        df_clean['Expected Return'] = df_clean['Profitability'] / 5
+        df_clean['Price'] = (df_clean['Total_Revenue'] / df_clean['Total_Assets']) * 100
+        df_clean['Stability'] = 1 / (1 + df_clean['Price'].std())
+
+        return df_clean
+
+    except Exception as e:
+        st.error(f"❌ Failed to load your_cleaned_trimmed_df.csv: {e}")
+        return pd.DataFrame()
+# ============================================
+# Remove Outliers with Z-Score
+# ============================================
+def remove_outliers(df, columns):
+    try:
+        z_scores = np.abs(stats.zscore(df[columns].dropna()))
+        return df[(z_scores < 3).all(axis=1)]
+    except Exception:
+        return df  # fallback if z-score fails
+
+# ============================================
+# Clustering with Guardrails
+# ============================================
 def perform_clustering(df):
     df_clean = df.dropna(subset=['Dividend Yield', 'Expected Return', 'Stability'])
     df_clean = remove_outliers(df_clean, ['Dividend Yield', 'Expected Return', 'Stability'])
+
+    if df_clean.empty:
+        raise ValueError("No valid data left after removing NaNs and outliers.")
+
     scaler = StandardScaler()
     features_scaled = scaler.fit_transform(df_clean[['Dividend Yield', 'Expected Return', 'Stability']])
+
     model = KMeans(n_clusters=3, random_state=42)
     df_clean['Cluster'] = model.fit_predict(features_scaled)
+
     return model, df_clean
 
+# ============================================
+# Stock Recommender
+# ============================================
 def recommend_stocks(df, budget, model=None, preferences=None, min_price_per_stock=20, max_price_per_stock=500):
     df_clean = df.dropna(subset=['Dividend Yield', 'Expected Return', 'Stability'])
     df_clean = remove_outliers(df_clean, ['Dividend Yield', 'Expected Return', 'Stability'])
+
     if preferences:
         priority = preferences.get('priority')
-        if priority == 'Dividend Yield':
-            df_clean = df_clean.sort_values('Dividend Yield', ascending=False)
-        elif priority == 'Expected Return':
-            df_clean = df_clean.sort_values('Expected Return', ascending=False)
-        elif priority == 'Stability':
-            df_clean = df_clean.sort_values('Stability', ascending=False)
-    if model:
+        if priority in df_clean.columns:
+            df_clean = df_clean.sort_values(priority, ascending=False)
+
+    if model and not df_clean.empty:
         features = df_clean[['Dividend Yield', 'Expected Return', 'Stability']]
         scaler = StandardScaler()
         features_scaled = scaler.fit_transform(features)
         df_clean['Cluster'] = model.predict(features_scaled)
         best_cluster = df_clean['Cluster'].mode()[0]
         df_clean = df_clean[df_clean['Cluster'] == best_cluster]
-    df_clean = df_clean[(df_clean['Price'] >= min_price_per_stock) & (df_clean['Price'] <= max_price_per_stock)]
-    selected = df_clean.head(5)
-    allocation = budget / len(selected) if len(selected) > 0 else 0
-    selected['Allocation'] = allocation
-    return selected
 
-def get_sp500_tickers():
-    url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    table = soup.find('table', {'id': 'constituents'})
-    df = pd.read_html(str(table))[0]
-    return df['Symbol'].tolist()
+    df_clean = df_clean[(df_clean['Price'] >= min_price_per_stock) &
+                        (df_clean['Price'] <= max_price_per_stock)]
+
+    if df_clean.empty:
+        return pd.DataFrame()
+
+    selected = df_clean.head(5)
+    selected['Allocation'] = budget / len(selected)
+    return selected
 
 #Sector Competitor Explorer
 
@@ -399,34 +437,35 @@ def main():
         max_price = st.number_input("Maximum Stock Price ($)", min_value=0, value=500)
 
         if st.button("Get Stock Recommendations"):
-            tickers = get_sp500_tickers()
-            df_features = extract_features(tickers)
-            model, clustered = perform_clustering(df_features)
+            with st.spinner("Fetching and analyzing data..."):
+                tickers = get_sp500_tickers()
+                df_features = extract_features(tickers)
+                model, clustered = perform_clustering(df_features)
 
-            preferences = {'priority': investment_priority}
-            recommended_stocks = recommend_stocks(clustered, budget, model, preferences, min_price, max_price)
+                preferences = {'priority': investment_priority}
+                recommended_stocks = recommend_stocks(clustered, budget, model, preferences, min_price, max_price)
 
             st.subheader("Top Recommended Stocks")
             st.write(recommended_stocks)
 
-            # 🎯 Dividend Income Goal Calculation
+            # Dividend income estimation
             total_dividend_yield = recommended_stocks['Dividend Yield'].mean()
             expected_annual_income = budget * total_dividend_yield if not np.isnan(total_dividend_yield) else 0
 
             st.subheader("🎯 Dividend Income Goal")
             st.metric(label="Expected Annual Dividend Income", value=f"${expected_annual_income:.2f}")
 
-            # 📊 Chart
+            # Plot
             fig, ax = plt.subplots()
             ax.bar(["Investment", "Expected Dividend Income"], [budget, expected_annual_income])
             ax.set_ylabel('USD ($)')
             ax.set_title('Investment vs Expected Annual Dividend')
             st.pyplot(fig)
 
-            # 📈 Strategy Suggestion
+            # Strategy
             st.subheader("📈 Strategy Recommendation")
             if expected_annual_income < budget * 0.04:
-                st.warning("Consider selecting stocks with higher dividend yields to better reach your dividend income goals.")
+                st.warning("Consider selecting stocks with higher dividend yields.")
             else:
                 st.success("Your portfolio aligns well with a stable dividend income strategy.")
 
@@ -439,5 +478,6 @@ def main():
     elif page == "Explain Backend":
         explain_backend()
 
+# Only run main() when executed directly
 if __name__ == "__main__":
     main()
