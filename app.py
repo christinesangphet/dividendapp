@@ -438,44 +438,57 @@ def main():
                 st.error(f"Error: {classification}")
 
     elif page == "Investing Analysis":
-        st.subheader("Personalized Investment Recommendation")
-        budget = st.number_input("Enter Investment Budget ($)", min_value=1000)
-        investment_priority = st.selectbox("Select Investment Priority", ['Dividend Yield', 'Expected Return', 'Stability'])
+        st.subheader("Input preferences below for personalized investment analysis:")
+
+        budget = st.number_input("Investment Budget ($)", min_value=0)
+        investment_priority = st.selectbox(
+            "Select Investment Priority",
+            ['Dividend Yield', 'Expected Return', 'Stability']
+        )
         min_price = st.number_input("Minimum Stock Price ($)", min_value=0, value=20)
         max_price = st.number_input("Maximum Stock Price ($)", min_value=0, value=500)
 
         if st.button("Get Stock Recommendations"):
-            with st.spinner("Fetching and analyzing data..."):
-                tickers = get_sp500_tickers()
-                df_features = extract_features(tickers)
-                model, clustered = perform_clustering(df_features)
+            tickers = get_sp500_tickers()
+            df_features = extract_features(tickers)
+            model, clustered = perform_clustering(df_features)
 
-                preferences = {'priority': investment_priority}
-                recommended_stocks = recommend_stocks(clustered, budget, model, preferences, min_price, max_price)
+            # Explain clustering
+            st.subheader("How Clustering Works")
+            st.write("""
+            Stocks are grouped into clusters based on similarities in their dividend yield, expected return (based on financial metrics), and stability (volatility measured by beta).
+            We recommend stocks from the 'best' cluster that matches your selected priority.
+            """)
 
-            st.subheader("Top Recommended Stocks")
-            st.write(recommended_stocks)
+            # Visualize clusters in 3D
+            st.subheader("Cluster Visualization (3D)")
+            fig = plt.figure(figsize=(15, 15))
+            ax = fig.add_subplot(111, projection='3d')
+            ax.scatter(clustered['Dividend Yield'], clustered['Expected Return'], clustered['Stability'], 
+                       c=clustered['Cluster'], cmap='viridis')
 
-            # Dividend income estimation
-            total_dividend_yield = recommended_stocks['Dividend Yield'].mean()
-            expected_annual_income = budget * total_dividend_yield if not np.isnan(total_dividend_yield) else 0
+            ax.set_xlabel('Dividend Yield')
+            ax.set_ylabel('Expected Return')
+            ax.set_zlabel('Stability')
+            ax.set_title('Stock Clusters in 3D')
 
-            st.subheader("🎯 Dividend Income Goal")
-            st.metric(label="Expected Annual Dividend Income", value=f"${expected_annual_income:.2f}")
+            # Add cluster labels at the center
+            for cluster_num in clustered['Cluster'].unique():
+                cluster_data = clustered[clustered['Cluster'] == cluster_num]
+                center_x = cluster_data['Dividend Yield'].mean()
+                center_y = cluster_data['Expected Return'].mean()
+                center_z = cluster_data['Stability'].mean()
+                ax.text(center_x, center_y, center_z, f'Cluster {cluster_num}', fontsize=12, weight='bold', 
+                        ha='center', va='center', bbox=dict(facecolor='white', alpha=0.6, edgecolor='black'))
 
-            # Plot
-            fig, ax = plt.subplots()
-            ax.bar(["Investment", "Expected Dividend Income"], [budget, expected_annual_income])
-            ax.set_ylabel('USD ($)')
-            ax.set_title('Investment vs Expected Annual Dividend')
             st.pyplot(fig)
 
-            # Strategy
-            st.subheader("📈 Strategy Recommendation")
-            if expected_annual_income < budget * 0.04:
-                st.warning("Consider selecting stocks with higher dividend yields.")
-            else:
-                st.success("Your portfolio aligns well with a stable dividend income strategy.")
+            preferences = {'priority': investment_priority}
+            recommended_stocks = recommend_stocks(clustered, budget, model, preferences, min_price, max_price)
+
+            st.subheader("Top Stock Picks for Your Budget and Preferences")
+            st.write(recommended_stocks)
+
 
     elif page == "Sector Competitor Explorer":
         sector_competitor_explorer()
