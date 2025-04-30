@@ -437,7 +437,7 @@ def main():
             else:
                 st.error(f"Error: {classification}")
 
-     elif page == "Investing Analysis":
+    elif page == "Investing Analysis":
         st.subheader("Input preferences below for personalized investment analysis:")
 
         budget = st.number_input("Investment Budget ($)", min_value=0)
@@ -453,14 +453,12 @@ def main():
             df_features = extract_features(tickers)
             model, clustered = perform_clustering(df_features)
 
-            # Explain clustering
             st.subheader("How Clustering Works")
             st.write("""
             Stocks are grouped into clusters based on similarities in their dividend yield, expected return (based on financial metrics), and stability (volatility measured by beta).
             We recommend stocks from the 'best' cluster that matches your selected priority.
             """)
 
-            # Visualize clusters in 3D
             st.subheader("Cluster Visualization (3D)")
             fig = plt.figure(figsize=(15, 15))
             ax = fig.add_subplot(111, projection='3d')
@@ -472,7 +470,6 @@ def main():
             ax.set_zlabel('Stability')
             ax.set_title('Stock Clusters in 3D')
 
-            # Add cluster labels at the center
             for cluster_num in clustered['Cluster'].unique():
                 cluster_data = clustered[clustered['Cluster'] == cluster_num]
                 center_x = cluster_data['Dividend Yield'].mean()
@@ -498,6 +495,6 @@ def main():
     elif page == "Explain Backend":
         explain_backend()
 
-# Only run main() when executed directly
+
 if __name__ == "__main__":
     main()
